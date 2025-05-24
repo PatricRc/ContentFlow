@@ -1,0 +1,1378 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ContentFlow Gamified v2 - AI Grid Export</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* --- THEME VARIABLES --- */
+        :root { /* Default: Dark Mode */
+            --bg-primary: #0f172a; /* slate-900 */
+            --bg-secondary: #1e293b; /* slate-800 */
+            --bg-tertiary: #334155; /* slate-700 */
+            --text-primary: #f8fafc; /* slate-50 */
+            --text-secondary: #cbd5e1; /* slate-300 */
+            --text-muted: #94a3b8; /* slate-400 */
+            --accent-primary: #38bdf8; /* sky-400 */
+            --accent-secondary: #a78bfa; /* violet-400 */
+            --accent-success: #4ade80; /* green-400 */
+            --border-color: #334155; /* slate-700 */
+            --shadow-color: rgba(0, 0, 0, 0.1);
+            --gradient-start: var(--bg-primary);
+            --gradient-mid: var(--bg-secondary);
+            --gradient-end: #29364a;
+        }
+
+        .light-mode {
+            --bg-primary: #ffffff; /* white */
+            --bg-secondary: #f1f5f9; /* slate-100 */
+            --bg-tertiary: #e2e8f0; /* slate-200 */
+            --text-primary: #0f172a; /* slate-900 */
+            --text-secondary: #475569; /* slate-600 */
+            --text-muted: #64748b; /* slate-500 */
+            --accent-primary: #0ea5e9; /* sky-500 */
+            --accent-secondary: #8b5cf6; /* violet-500 */
+            --accent-success: #22c55e; /* green-500 */
+            --border-color: #e2e8f0; /* slate-200 */
+            --shadow-color: rgba(15, 23, 42, 0.05); /* slate-900 with low alpha */
+            --gradient-start: #f0f9ff; /* sky-50 */
+            --gradient-mid: #f1f5f9; /* slate-100 */
+            --gradient-end: #faf5ff; /* purple-50 */
+        }
+
+        /* --- BASE & UTILITIES --- */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            overflow-x: hidden;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-secondary); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb { background: linear-gradient(var(--accent-primary), var(--accent-secondary)); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: linear-gradient(var(--accent-secondary), var(--accent-primary)); }
+        @keyframes gradient-animation { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+        .animated-gradient-bg { background: linear-gradient(-45deg, var(--gradient-start), var(--gradient-mid), var(--gradient-end), var(--gradient-start)); background-size: 400% 400%; animation: gradient-animation 25s ease infinite; }
+
+        /* --- COMPONENT STYLES --- */
+        .card { background-color: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 0.75rem; padding: 1.5rem; box-shadow: 0 4px 6px -1px var(--shadow-color), 0 2px 4px -2px var(--shadow-color); transition: background-color 0.3s ease, border-color 0.3s ease; }
+        .btn { display: inline-flex; align-items: center; justify-content: center; border-radius: 0.5rem; padding: 0.6rem 1.2rem; font-weight: 600; font-size: 0.875rem; transition: all 0.2s ease-in-out; cursor: pointer; border: none; outline: none; }
+        .btn-primary { background: linear-gradient(to right, var(--accent-primary), var(--accent-secondary)); color: var(--bg-primary); box-shadow: 0 2px 10px -2px color-mix(in srgb, var(--accent-secondary) 40%, transparent); }
+        .btn-primary:hover { opacity: 0.9; box-shadow: 0 4px 15px -3px color-mix(in srgb, var(--accent-secondary) 50%, transparent); }
+        .btn-secondary { background-color: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color); }
+        .btn-secondary:hover { background-color: color-mix(in srgb, var(--bg-tertiary) 85%, var(--text-primary) 15%); }
+        .btn-ghost { background-color: transparent; color: var(--text-secondary); }
+        .btn-ghost:hover { background-color: var(--bg-tertiary); color: var(--text-primary); }
+        .btn-success { background-color: var(--accent-success); color: var(--bg-primary); }
+        .btn-success:hover { opacity: 0.9; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; background-color: var(--bg-tertiary); background-image: none; box-shadow: none; }
+        .btn-sm { padding: 0.4rem 0.8rem; font-size: 0.8rem; } /* Smaller button variant */
+
+        /* Mejora del contraste para títulos en modo claro */
+        .text-white { color: var(--text-primary); }
+        .light-mode .text-white { color: #1e293b; } /* Un color más oscuro para el modo claro */
+        
+        /* Asegurar buen contraste en títulos específicos */
+        .light-mode h1, .light-mode h2, .light-mode h3, 
+        .light-mode .text-3xl, .light-mode .text-2xl, .light-mode .text-xl {
+            color: #1e293b; /* slate-800 - buen contraste en fondo claro */
+        }
+        
+        /* Ajustar contraste en bloques de estadísticas y números */
+        .light-mode #user-points, 
+        .light-mode #user-level, 
+        .light-mode #user-streak,
+        .light-mode #dashboard-streak,
+        .light-mode #stats-points,
+        .light-mode #stats-level,
+        .light-mode #stats-completed {
+            color: #1e293b; /* slate-800 */
+        }
+        
+        /* Mantener el contenido de las tarjetas con buen contraste */
+        .light-mode .card .text-white {
+            color: #1e293b;
+        }
+        
+        /* Los títulos en modales necesitan mejor contraste */
+        .light-mode .modal-content .text-white {
+            color: #1e293b;
+        }
+
+        .custom-checkbox { appearance: none; width: 1.25rem; height: 1.25rem; border: 2px solid var(--border-color); border-radius: 0.25rem; display: inline-block; position: relative; cursor: pointer; transition: background-color 0.2s ease, border-color 0.2s ease; vertical-align: middle; }
+        .custom-checkbox:checked { background-color: var(--accent-primary); border-color: var(--accent-primary); }
+        .custom-checkbox:checked::after { content: ''; position: absolute; left: 4px; top: 1px; width: 5px; height: 10px; border: solid var(--bg-primary); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+
+        .progress-bar-bg { background-color: var(--bg-tertiary); border-radius: 9999px; height: 0.75rem; overflow: hidden; }
+        .progress-bar-fill { height: 100%; background: linear-gradient(to right, var(--accent-primary), var(--accent-secondary)); border-radius: 9999px; transition: width 0.5s ease-out; }
+
+        .badge { display: inline-flex; align-items: center; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+        .badge-primary { background-color: var(--accent-primary); color: var(--bg-primary); }
+        .badge-secondary { background-color: var(--bg-tertiary); color: var(--text-secondary); }
+        .badge-success { background-color: var(--accent-success); color: var(--bg-primary); }
+        .badge-outline { border: 1px solid var(--border-color); color: var(--text-secondary); background-color: transparent; }
+
+        /* Improved UI elements */
+        .input-field, .select-field, .textarea-field { background-color: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 0.5rem; padding: 0.6rem 1rem; color: var(--text-primary); width: 100%; font-size: 0.875rem; transition: all 0.2s ease; }
+        .input-field:focus, .select-field:focus, .textarea-field:focus { outline: none; border-color: var(--accent-primary); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-primary) 30%, transparent); }
+        .input-field[type="number"] { padding-right: 0.5rem; } /* Adjust padding for number input */
+        .textarea-field { min-height: 80px; }
+        .select-field { appearance: none; padding-right: 2.5rem; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 0.75rem center; background-size: 1em; }
+        .light-mode .select-field { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E"); }
+        .input-field-sm { padding: 0.4rem 0.75rem; }
+
+        /* Custom multiselect styling */
+        .custom-multiselect {
+            position: relative;
+            width: 100%;
+        }
+
+        .selected-options-display {
+            transition: all 0.2s ease;
+            background-color: var(--bg-secondary);
+        }
+
+        .selected-options-display:hover {
+            border-color: var(--accent-primary-subtle);
+        }
+
+        .platform-tag {
+            transition: all 0.2s ease;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        }
+
+        .platform-tag .remove-platform {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            opacity: 0.7;
+            transition: all 0.2s ease;
+            font-weight: bold;
+            margin-left: 4px;
+        }
+
+        .platform-tag:hover .remove-platform {
+            opacity: 1;
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .platform-tag .remove-platform:hover {
+            opacity: 1;
+            background-color: var(--accent-primary);
+            color: white;
+        }
+
+        .platform-dropdown {
+            transition: all 0.15s ease;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .platform-option {
+            transition: background-color 0.15s ease;
+        }
+
+        .platform-option.selected {
+            font-weight: 500;
+        }
+
+        .checkmark {
+            font-size: 0.85rem;
+            transition: opacity 0.15s ease;
+        }
+
+        /* --- LAYOUT & UI ELEMENTS --- */
+        .icon { width: 1.1rem; height: 1.1rem; stroke-width: 2.5; vertical-align: middle; }
+        .icon-sm { width: 1rem; height: 1rem; stroke-width: 2; }
+        .icon-lg { width: 1.5rem; height: 1.5rem; }
+        .icon-xl { width: 2.5rem; height: 2.5rem; }
+
+        .view { display: none; animation: fadeIn 0.5s ease-out; }
+        .view.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        #achievement-toast { position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%); background: linear-gradient(to right, var(--accent-primary), var(--accent-secondary)); color: var(--bg-primary); padding: 1rem 1.5rem; border-radius: 0.75rem; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3); z-index: 1000; transition: bottom 0.5s ease-in-out; display: flex; align-items: center; gap: 0.75rem; }
+        #achievement-toast.show { bottom: 20px; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .8; } }
+        .stat-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+
+        .modal-overlay { position: fixed; inset: 0; background-color: rgba(0, 0, 0, 0.6); backdrop-filter: blur(5px); z-index: 40; display: none; align-items: center; justify-content: center; }
+        .modal-overlay.active { display: flex; }
+        .modal-content { background-color: var(--bg-secondary); border-radius: 0.75rem; padding: 2rem; width: 90%; max-width: 500px; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2); border: 1px solid var(--border-color); }
+
+        .theme-switch-wrapper { display: flex; align-items: center; gap: 0.5rem; }
+        .theme-switch { position: relative; display: inline-block; width: 50px; height: 26px; }
+        .theme-switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; inset: 0; background-color: var(--bg-tertiary); border-radius: 34px; transition: .4s; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 4px; bottom: 4px; background-color: white; border-radius: 50%; transition: .4s; }
+        input:checked + .slider { background: linear-gradient(to right, var(--accent-primary), var(--accent-secondary)); }
+        input:checked + .slider:before { transform: translateX(24px); }
+
+        .loader { width: 24px; height: 24px; border: 3px solid var(--border-color); border-bottom-color: var(--accent-primary); border-radius: 50%; display: inline-block; box-sizing: border-box; animation: rotation 1s linear infinite; }
+        @keyframes rotation { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .ai-result-area { 
+            background-color: var(--bg-primary); 
+            border: 1px dashed var(--border-color); 
+            border-radius: 0.5rem; 
+            padding: 1rem; 
+            margin-top: 1rem; 
+            font-size: 0.875rem; 
+            color: var(--text-secondary); 
+            white-space: pre-wrap; 
+            max-height: 300px; 
+            overflow-y: auto; 
+            line-height: 1.5;
+        }
+
+        /* Adding styles for markdown formatting */
+        .markdown h1, .markdown h2, .markdown h3, .markdown h4, .markdown h5, .markdown h6 {
+            margin-top: 1em;
+            margin-bottom: 0.5em;
+            font-weight: 600;
+            color: var(--text-primary);
+            line-height: 1.3;
+        }
+        .markdown h1 { font-size: 1.5rem; }
+        .markdown h2 { font-size: 1.3rem; }
+        .markdown h3 { font-size: 1.1rem; }
+        .markdown p { margin-bottom: 0.75em; }
+        .markdown ul, .markdown ol { padding-left: 1.5em; margin-bottom: 0.75em; }
+        .markdown li { margin-bottom: 0.25em; }
+        .markdown code { background-color: var(--bg-tertiary); padding: 0.2em 0.4em; border-radius: 0.25em; font-family: monospace; }
+        .markdown pre { background-color: var(--bg-tertiary); padding: 0.75em; border-radius: 0.5em; overflow-x: auto; margin-bottom: 0.75em; }
+        .markdown pre code { background-color: transparent; padding: 0; }
+        .markdown blockquote { border-left: 3px solid var(--accent-primary); padding-left: 1em; margin-left: 0; margin-bottom: 0.75em; color: var(--text-muted); }
+        .markdown table { border-collapse: collapse; width: 100%; margin-bottom: 0.75em; }
+        .markdown th, .markdown td { border: 1px solid var(--border-color); padding: 0.5em; }
+        .markdown th { background-color: var(--bg-tertiary); font-weight: 600; }
+        .markdown a { color: var(--accent-primary); text-decoration: none; }
+        .markdown a:hover { text-decoration: underline; }
+        .markdown hr { border: none; border-top: 1px solid var(--border-color); margin: 1em 0; }
+        .markdown .number-list { padding-left: 0; list-style-type: none; counter-reset: item; }
+        .markdown .number-list li { counter-increment: item; margin-bottom: 0.75em; position: relative; padding-left: 2em; }
+        .markdown .number-list li:before { content: counter(item) ". "; position: absolute; left: 0; font-weight: bold; color: var(--accent-primary); }
+
+        .ai-result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .copy-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.25rem;
+            background-color: var(--bg-tertiary);
+            border-radius: 0.25rem;
+            cursor: pointer;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+        .copy-btn:hover {
+            opacity: 1;
+        }
+
+        /* AI enhancement button */
+        .ai-enhance-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0.6;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .ai-enhance-btn:hover {
+            opacity: 1;
+            background-color: var(--bg-tertiary);
+        }
+
+        .ai-enhance-btn .ai-tooltip {
+            position: absolute;
+            top: -30px;
+            right: -10px;
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            white-space: nowrap;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            pointer-events: none;
+        }
+
+        .ai-enhance-btn:hover .ai-tooltip {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .spinner-sm {
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(var(--accent-primary-rgb), 0.3);
+            border-top-color: var(--accent-primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="animated-gradient-bg text-sm">
+
+    <div class="flex min-h-screen">
+        <aside class="w-64 bg-opacity-70 backdrop-blur-lg border-r border-[var(--border-color)] p-6 flex flex-col fixed inset-y-0 left-0 z-20">
+            <div class="flex items-center gap-3 mb-8">
+                <svg data-lucide="rocket" class="icon-lg text-[var(--accent-primary)]"></svg>
+                <h1 class="text-xl font-bold text-white">ContentFlow</h1>
+            </div>
+            <nav class="flex flex-col gap-2 mb-8">
+                <button data-view="dashboard" class="nav-btn btn btn-ghost justify-start active"><svg data-lucide="layout-dashboard" class="icon mr-2"></svg> Dashboard</button>
+                <button data-view="workflow" class="nav-btn btn btn-ghost justify-start"><svg data-lucide="list-checks" class="icon mr-2"></svg> Workflow Activo</button>
+                <button data-view="library" class="nav-btn btn btn-ghost justify-start"><svg data-lucide="library" class="icon mr-2"></svg> Biblioteca Contenido</button>
+                <button data-view="achievements" class="nav-btn btn btn-ghost justify-start"><svg data-lucide="award" class="icon mr-2"></svg> Logros y Stats</button>
+            </nav>
+            <button id="settings-btn" class="btn btn-ghost justify-start mb-auto"><svg data-lucide="settings" class="icon mr-2"></svg> Ajustes</button>
+            <div class="card p-4 space-y-3 bg-opacity-80 border-none mt-4">
+                <h3 class="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">Estadísticas</h3>
+                <div class="text-center"><span class="block text-3xl font-bold text-white" id="user-points">0</span><span class="text-xs text-[var(--text-muted)]">Puntos</span></div>
+                <div class="text-center"><span class="block text-xl font-semibold text-white" id="user-level">Nivel 1</span><div class="progress-bar-bg mt-1"><div id="level-progress" class="progress-bar-fill" style="width: 0%;"></div></div></div>
+                <div class="text-center"><span class="block text-xl font-semibold text-white stat-pulse" id="user-streak">🔥 0</span><span class="text-xs text-[var(--text-muted)]">Racha Días</span></div>
+            </div>
+        </aside>
+
+        <main id="main-content" class="flex-1 ml-64 p-6 md:p-8 overflow-y-auto">
+            <div id="dashboard-view" class="view active"></div>
+            <div id="workflow-view" class="view"></div>
+            <div id="library-view" class="view"></div>
+            <div id="achievements-view" class="view"></div>
+        </main>
+    </div>
+
+    <div id="settings-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-semibold text-white">Ajustes</h2>
+                <button id="close-settings-btn" class="btn btn-ghost p-1"><svg data-lucide="x" class="icon"></svg></button>
+            </div>
+            <div class="space-y-6">
+                <div>
+                    <label for="api-key-input" class="block text-sm font-medium text-[var(--text-secondary)] mb-1">Google AI API Key (Gemini)</label>
+                    <input type="password" id="api-key-input" class="input-field" placeholder="Ingresa tu API Key...">
+                    <div class="mt-2 p-3 bg-red-900 border border-red-700 rounded-md text-red-100 text-xs">
+                        <p><strong>⚠️ Advertencia de Seguridad:</strong> Guardar tu API Key aquí la almacena en el `localStorage` de tu navegador, lo cual **NO es seguro**. Puede ser accesible por extensiones o ataques XSS. Úsalo con precaución, preferiblemente con claves temporales o restringidas.</p>
+                    </div>
+                    <button id="save-api-key-btn" class="btn btn-primary mt-3 w-full">Guardar API Key</button>
+                </div>
+                <div class="flex justify-between items-center p-4 bg-[var(--bg-tertiary)] rounded-lg">
+                    <span class="text-sm font-medium text-[var(--text-secondary)]">Tema (Modo Claro/Oscuro)</span>
+                    <div class="theme-switch-wrapper">
+                         <svg data-lucide="sun" class="icon icon-sm text-yellow-400"></svg>
+                         <label class="theme-switch"><input type="checkbox" id="theme-toggle"><span class="slider"></span></label>
+                         <svg data-lucide="moon" class="icon icon-sm text-violet-400"></svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="achievement-toast">
+         <svg data-lucide="award" class="icon-lg text-yellow-300"></svg>
+         <span id="toast-text" class="font-semibold"></span>
+    </div>
+
+    <script>
+        // --- CONSTANTS & CONFIG ---
+        const STORAGE_KEY = 'contentFlowGamifiedData_v4'; // Incremented version key
+        const GEMINI_API_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=';
+
+        // --- STORAGE MODULE ---
+        function loadData() {
+            const data = localStorage.getItem(STORAGE_KEY);
+            const defaultData = { userStats: { points: 0, level: 1, streak: 0, lastActivityDate: null, achievements: [] }, contentPieces: [], activeContentId: null, apiKey: null, theme: 'dark' };
+            if (data) { try { return { ...defaultData, ...JSON.parse(data) }; } catch (e) { console.error("Error parsing localStorage data:", e); return defaultData; } }
+            return defaultData;
+        }
+        function saveData(data) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (error) { console.error("Error saving data:", error); alert("Error al guardar."); } }
+
+        // --- WORKFLOW MODULE ---
+        const workflowSteps = [ // Added generateGridIdeas action
+            { id: 'research', name: 'Research (Ideas)', points: 10, icon: 'search', aiActions: ['generateIdeas'], needsContext: ['topic', 'audience', 'objective'] },
+            { id: 'define', name: 'Definir Formato/Objetivo', points: 10, icon: 'target', aiActions: ['suggestFormats', 'refineObjective'], needsContext: ['topic', 'audience', 'platform', 'objective'] },
+            { id: 'grid', name: 'Actualizar Grilla', points: 5, icon: 'calendar-plus', aiActions: ['suggestPostingTimes', 'generateRelatedTopics', 'generateGridIdeas'], needsContext: ['topic', 'platform', 'audience']}, // Added generateGridIdeas
+            { id: 'script', name: 'Crear Guión/Estructura', points: 15, icon: 'file-text', aiActions: ['generateHooks', 'generateCarouselOutline', 'generateVideoScriptIdea', 'improveScriptClarity', 'suggestVisuals'], needsContext: ['topic', 'platform', 'objective', 'audience'] },
+            { id: 'produce', name: 'Grabar/Diseñar', points: 20, icon: 'camera', aiActions: ['generateShotlist', 'suggestDesignStyles', 'provideTechTips'], needsContext: ['topic', 'platform'] },
+            { id: 'edit', name: 'Editar/Post-Producir', points: 15, icon: 'scissors', aiActions: ['suggestEditingImprovements', 'generateTitlesCaptions', 'checkReadability'], needsContext: ['topic', 'platform', 'objective'] },
+            { id: 'publish', name: 'Publicar', points: 10, icon: 'send', aiActions: ['generateHashtags', 'draftCaption', 'suggestCTAVariations'], needsContext: ['topic', 'platform', 'objective', 'notes'] },
+            { id: 'monitor', name: 'Monitorear/Enganchar', points: 15, icon: 'bar-chart-3', aiActions: ['suggestEngagementQuestions', 'identifyKPIs'], needsContext: ['topic', 'platform', 'objective'] },
+        ];
+        function createNewContentPiece(title) { const newPiece = { id: `content-${Date.now()}-${Math.random().toString(16).slice(2)}`, title: title || 'Nuevo Contenido Sin Título', status: 'in_progress', createdAt: new Date().toISOString(), steps: {}, notes: '', aiContext: { topic: '', audience: '', platform: '', objective: '' }, }; workflowSteps.forEach(step => { newPiece.steps[step.id] = { status: 'pending', completedAt: null, aiSuggestions: [] }; }); return newPiece; }
+        function updateStepStatus(contentPiece, stepId, newStatus) { if (contentPiece?.steps[stepId]) { const step = contentPiece.steps[stepId]; if(step.status !== newStatus) { step.status = newStatus; step.completedAt = (newStatus === 'done') ? new Date().toISOString() : null; return true; } } return false; }
+        function checkAndUpdateOverallStatus(contentPiece) { if (!contentPiece) return; const allStepsDone = workflowSteps.every(ws => contentPiece.steps[ws.id]?.status === 'done'); if (allStepsDone) { contentPiece.status = 'done'; } else { const anyStepStarted = workflowSteps.some(ws => contentPiece.steps[ws.id]?.status !== 'pending'); contentPiece.status = anyStepStarted ? 'in_progress' : 'pending'; } }
+        function calculateProgress(contentPiece) { if (!contentPiece) return 0; const totalSteps = workflowSteps.length; const completedSteps = workflowSteps.filter(ws => contentPiece.steps[ws.id]?.status === 'done').length; return totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0; }
+
+        // --- GAMIFICATION MODULE ---
+        const levelThresholds = [0, 100, 250, 500, 1000, 2000, 5000];
+        const achievementsList = [ { id: 'ach_start', name: 'Primeros Pasos', description: 'Inicia tu primer contenido.', condition: (data) => data.contentPieces.length >= 1, icon: 'play-circle' }, { id: 'ach_research_1', name: 'Investigador Novato', description: 'Completa la fase de Research por primera vez.', condition: (data, action) => action?.type === 'step_complete' && action?.stepId === 'research', icon: 'search' }, { id: 'ach_publish_1', name: '¡Al Aire!', description: 'Publica tu primer contenido completo.', condition: (data, action) => action?.type === 'content_complete', icon: 'rocket' }, { id: 'ach_publish_5', name: 'Creador Consistente', description: 'Completa 5 piezas de contenido.', condition: (data) => data.contentPieces.filter(p => p.status === 'done').length >= 5, icon: 'list-checks' }, { id: 'ach_streak_3', name: 'En Racha', description: 'Mantén una racha de 3 días.', condition: (data) => data.userStats.streak >= 3, icon: 'flame' }, { id: 'ach_streak_7', name: 'Imparable', description: 'Mantén una racha de 7 días.', condition: (data) => data.userStats.streak >= 7, icon: 'zap' }, { id: 'ach_level_3', name: 'Subiendo de Nivel', description: 'Alcanza el Nivel 3.', condition: (data) => data.userStats.level >= 3, icon: 'trending-up' }, { id: 'ach_level_5', name: 'Maestro del Flujo', description: 'Alcanza el Nivel 5.', condition: (data) => data.userStats.level >= 5, icon: 'crown' }, { id: 'ach_all_steps', name: 'Ciclo Completo', description: 'Completa todos los pasos de un contenido en un día.', condition: (data, action) => action?.type === 'content_complete' && action?.completedInOneDay === true, icon: 'refresh-cw' }, { id: 'ach_ai_assist', name: 'Asistencia IA', description: 'Usa una función de IA por primera vez.', condition: (data, action) => action?.type === 'ai_used', icon: 'brain-circuit' }, { id: 'ach_ai_master', name: 'Colaborador IA', description: 'Usa la asistencia IA 10 veces.', condition: (data) => (data.aiUseCount || 0) >= 10, icon: 'bot'} ]; // Added aiUseCount tracking needed
+        function addPoints(data, amount) { if (!data?.userStats) return; data.userStats.points += amount; console.log(`+${amount} points! Total: ${data.userStats.points}`); checkLevelUp(data); }
+        function checkLevelUp(data) { if (!data?.userStats) return false; const cL = data.userStats.level; const cP = data.userStats.points; let nL = cL; for (let i = levelThresholds.length - 1; i >= 0; i--) { if (cP >= levelThresholds[i]) { nL = i + 1; break; } } if (nL > cL) { data.userStats.level = nL; console.log(`Level Up! Reached Level ${nL}`); showToast(`✨ ¡Subiste al Nivel ${nL}! ✨`); checkAchievements(data, { type: 'level_up', level: nL }); return true; } return false; }
+        function getLevelProgress(data) { if (!data?.userStats) return 0; const cL = data.userStats.level; const cP = data.userStats.points; const pCL = levelThresholds[cL - 1] ?? 0; const pNL = levelThresholds[cL] ?? Infinity; if (pNL === Infinity) return 100; const pN = pNL - pCL; const pE = cP - pCL; return pN > 0 ? Math.max(0, Math.min(100, Math.round((pE / pN) * 100))) : 100; }
+        function updateStreak(data) { if (!data?.userStats) return; const today = new Date().toISOString().split('T')[0]; const lastDate = data.userStats.lastActivityDate; if (lastDate === today) return; const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1); const yesterdayStr = yesterday.toISOString().split('T')[0]; if (lastDate === yesterdayStr) { data.userStats.streak += 1; console.log(`Streak continued! ${data.userStats.streak} days!`); } else { data.userStats.streak = 1; console.log("New streak started!"); } data.userStats.lastActivityDate = today; checkAchievements(data, { type: 'streak_update' }); }
+        function checkAchievements(data, action = null) { if (!data?.userStats) return; if (action?.type === 'ai_used') { data.aiUseCount = (data.aiUseCount || 0) + 1; } achievementsList.forEach(ach => { if (!data.userStats.achievements.includes(ach.id)) { if (ach.condition(data, action)) { data.userStats.achievements.push(ach.id); console.log(`Achievement Unlocked: ${ach.name}`); showToast(`🏆 Logro: ${ach.name}`); } } }); }
+        function showToast(message) { const t = document.getElementById('achievement-toast'); const tx = document.getElementById('toast-text'); if (t && tx) { tx.textContent = message; t.classList.add('show'); setTimeout(() => { t.classList.remove('show'); }, 4000); } }
+
+        // --- AI MODULE ---
+        async function callGeminiAPI(prompt, apiKey) { /* ... (same as previous version) ... */ if (!apiKey) { alert("Ingresa tu API Key en Ajustes."); return null; } const fullApiUrl = `${GEMINI_API_ENDPOINT}${apiKey}`; const requestBody = { contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.7, topK: 40, topP: 0.95, maxOutputTokens: 1024, }, safetySettings: [ { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }, { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" }, { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }, { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" } ] }; try { const response = await fetch(fullApiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(requestBody) }); if (!response.ok) { const errorData = await response.json(); console.error("API Error:", response.status, errorData); alert(`Error de API: ${errorData.error?.message || response.statusText}`); return null; } const data = await response.json(); const text = data.candidates?.[0]?.content?.parts?.[0]?.text; if (!text) { console.error("No text found in API response:", data); alert("No se pudo extraer texto de la respuesta."); return null; } return text.trim(); } catch (error) { console.error("Error calling Gemini API:", error); alert("Error de red o API. Revisa la consola."); return null; } }
+        // --- Specific AI Action Functions ---
+        async function generateIdeas(context, apiKey) { const prompt = `Genera 5 ideas de contenido creativas y específicas para redes sociales sobre el tema "${context.topic || 'un tema general'}". Considera que la audiencia es ${context.audience || 'general'} y el objetivo es ${context.objective || 'generar engagement'}. Formato: lista numerada clara y concisa.`; return await callGeminiAPI(prompt, apiKey); }
+        async function suggestFormats(context, apiKey) { const prompt = `Sugiere 3 formatos de contenido (ej: Reel, Carrusel, Post de Texto, etc.) ideales para el tema "${context.topic || 'un tema general'}" dirigido a ${context.audience || 'una audiencia general'} con el objetivo de ${context.objective || 'informar'}. Justifica brevemente cada sugerencia.`; return await callGeminiAPI(prompt, apiKey); }
+        async function refineObjective(context, apiKey) { const prompt = `Convierte este objetivo general: "${context.objective || 'crear contenido'}" en un objetivo SMART (Específico, Medible, Alcanzable, Relevante, Temporal) para una pieza de contenido sobre "${context.topic || 'un tema general'}" en la plataforma ${context.platform || 'redes sociales'}. Proporciona 1-2 opciones SMART.`; return await callGeminiAPI(prompt, apiKey); }
+        async function suggestPostingTimes(context, apiKey) { const prompt = `Sugiere 3 bloques horarios ideales para publicar contenido en ${context.platform || 'Instagram'} dirigido a ${context.audience || 'una audiencia general'}, basado en patrones generales de uso. Indica el día y la franja horaria (ej: Lunes 9-11am).`; return await callGeminiAPI(prompt, apiKey); }
+        async function generateRelatedTopics(context, apiKey) { const prompt = `Genera 5 ideas de temas relacionados o subtemas para explorar a partir del tema principal "${context.topic || 'un tema interesante'}". Útil para planificar contenido futuro en la grilla. Formato: lista.`; return await callGeminiAPI(prompt, apiKey); }
+        async function generateHooks(context, apiKey) { const prompt = `Genera 5 "hooks" (ganchos iniciales) atractivos para un contenido sobre "${context.topic || 'un tema interesante'}". El formato es ${context.platform || 'redes sociales'} y el objetivo ${context.objective || 'captar atención'}. Formato: lista numerada.`; return await callGeminiAPI(prompt, apiKey); }
+        async function generateCarouselOutline(context, apiKey) { const prompt = `Crea un esquema detallado para un carrusel de ${context.platform === 'LinkedIn' ? 'LinkedIn' : 'Instagram'} (5-7 slides) sobre "${context.topic || 'un tema relevante'}". Incluye título para cada slide y una breve descripción del contenido/visual. Audiencia: ${context.audience || 'general'}. Objetivo: ${context.objective || 'educar'}. Formato: Slide 1: [Título], Slide 2: [Título], etc.`; return await callGeminiAPI(prompt, apiKey); }
+        async function generateVideoScriptIdea(context, apiKey) { const prompt = `Genera una idea de guión concisa (puntos clave) para un video corto (${context.platform || 'Reel/TikTok'}) sobre "${context.topic || 'un tema útil'}". Incluye un hook, 2-3 puntos principales y un CTA. Objetivo: ${context.objective || 'informar rápidamente'}. Formato: Hook:, Punto 1:, Punto 2:, CTA:.`; return await callGeminiAPI(prompt, apiKey); }
+        async function improveScriptClarity(context, apiKey) { const prompt = `Revisa el siguiente texto (si existe en notas o contexto) o concepto general sobre "${context.topic || 'un tema'}" y sugiere 3 formas de mejorar su claridad y engagement para ${context.platform || 'redes sociales'}. Si no hay texto, da consejos generales de claridad. Contexto adicional de notas: ${context.notes || '(ninguna)'}`; return await callGeminiAPI(prompt, apiKey); }
+        async function suggestVisuals(context, apiKey) { const prompt = `Sugiere 3 ideas visuales concretas (fotos, gráficos, clips) para acompañar un contenido sobre "${context.topic || 'un tema'}" en ${context.platform || 'Instagram'}.`; return await callGeminiAPI(prompt, apiKey); }
+        async function generateShotlist(context, apiKey) { const prompt = `Genera una lista básica de 5 planos o tomas (shot list) sugeridas para grabar un video corto sobre "${context.topic || 'un tema visual'}" para ${context.platform || 'Reels'}. Ej: Plano detalle de X, Plano medio hablando, B-roll de Y.`; return await callGeminiAPI(prompt, apiKey); }
+        async function suggestDesignStyles(context, apiKey) { const prompt = `Sugiere 3 estilos de diseño gráfico (ej: minimalista, retro, corporativo, etc.) o plantillas de Canva populares que funcionarían bien para un contenido visual sobre "${context.topic || 'un tema'}" en ${context.platform || 'Instagram'}.`; return await callGeminiAPI(prompt, apiKey); }
+        async function provideTechTips(context, apiKey) { const prompt = `Proporciona 3 consejos técnicos rápidos y prácticos (iluminación, audio o composición) para mejorar la calidad al ${context.platform?.toLowerCase().includes('video') || context.topic?.toLowerCase().includes('video') ? 'grabar un video' : 'crear un diseño'} sobre "${context.topic || 'un tema'}" con un smartphone.`; return await callGeminiAPI(prompt, apiKey); }
+        async function suggestEditingImprovements(context, apiKey) { const prompt = `Basado en el tema "${context.topic || 'un tema'}" para ${context.platform || 'un video corto'}, sugiere 3 mejoras de edición conceptuales para aumentar el dinamismo (ej: usar cortes rápidos, añadir efectos de sonido sutiles, superponer texto clave).`; return await callGeminiAPI(prompt, apiKey); }
+        async function generateTitlesCaptions(context, apiKey) { const prompt = `Genera 3 opciones de títulos llamativos y 2 opciones de primera línea de caption (leyenda) para un contenido sobre "${context.topic || 'un tema'}" en ${context.platform || 'redes sociales'} con objetivo ${context.objective || 'atraer clics'}.`; return await callGeminiAPI(prompt, apiKey); }
+        async function checkReadability(context, apiKey) { const prompt = `Analiza la legibilidad conceptual de un texto sobre "${context.topic || 'un tema'}" para ${context.platform || 'redes sociales'}. Ofrece 3 consejos generales para mejorar la claridad y facilitar la lectura rápida (ej: usar listas, frases cortas, lenguaje simple).`; return await callGeminiAPI(prompt, apiKey); }
+        async function generateHashtags(context, apiKey) { const prompt = `Genera una lista de 10 hashtags relevantes para un post sobre "${context.topic || 'un tema relevante'}" en ${context.platform || 'Instagram'}. Incluye una mezcla de hashtags populares, de nicho y específicos.`; return await callGeminiAPI(prompt, apiKey); }
+        async function draftCaption(context, apiKey) { const prompt = `Escribe un borrador de caption (leyenda) corto y atractivo (2-3 frases) para ${context.platform || 'Instagram'} sobre "${context.topic || 'un tema interesante'}". Incluye un hook inicial y un CTA relacionado con ${context.objective || 'comentar'}. Considera las notas: ${context.notes || '(ninguna)'}.`; return await callGeminiAPI(prompt, apiKey); }
+        async function suggestCTAVariations(context, apiKey) { const prompt = `Sugiere 3 variaciones de Llamadas a la Acción (CTAs) efectivas para un contenido sobre "${context.topic || 'un tema'}" con el objetivo de ${context.objective || 'generar interacción'}. Ej: "¿Qué opinas?", "Guarda si te sirve", etc.`; return await callGeminiAPI(prompt, apiKey); }
+        async function suggestEngagementQuestions(context, apiKey) { const prompt = `Genera 3 preguntas abiertas para fomentar la conversación en los comentarios de un post sobre "${context.topic || 'un tema'}" en ${context.platform || 'redes sociales'}.`; return await callGeminiAPI(prompt, apiKey); }
+        async function identifyKPIs(context, apiKey) { const prompt = `Sugiere 3 KPIs (Indicadores Clave de Rendimiento) importantes a monitorear para un contenido sobre "${context.topic || 'un tema'}" en ${context.platform || 'redes sociales'} con el objetivo de ${context.objective || 'medir el éxito'}. Ej: Tasa de Engagement, Guardados, Clics en enlace.`; return await callGeminiAPI(prompt, apiKey); }
+        // New AI function for Grid Generation
+        async function generateGridIdeas(context, numRows, apiKey) {
+            const prompt = `Genera ${numRows} ideas de contenido para una grilla de redes sociales, basadas en el tema "${context.topic || 'general'}" para la audiencia "${context.audience || 'general'}".
+            Formato deseado: Tabla Markdown con EXACTAMENTE las siguientes 7 columnas:
+            | Fecha Sugerida | Tema/Idea Específica | Formato Sugerido | Plataforma Principal | Objetivo Específico | Hook Sugerido | CTA Sugerido |
+            |---|---|---|---|---|---|---|
+            (Genera ${numRows} filas aquí)
+
+            Ejemplo de fila: | Próx. Lunes | 5 Errores Comunes al Analizar Datos | Carrusel | LinkedIn | Educar sobre errores | "¿Cometes estos errores?" | "Comenta tu experiencia" |
+            Asegúrate de que la respuesta sea solo la tabla Markdown, sin texto introductorio o final.`;
+            const rawResult = await callGeminiAPI(prompt, apiKey);
+            if (!rawResult) return null;
+            // Attempt to parse Markdown table into JSON
+            return parseMarkdownTable(rawResult);
+        }
+
+        // Helper to parse Markdown table (simple version)
+        function parseMarkdownTable(markdown) {
+            const lines = markdown.trim().split('\n');
+            if (lines.length < 3) return []; // Header, separator, at least one data row
+
+            const headers = lines[0].split('|').map(h => h.trim()).filter(h => h);
+            // Expected headers (adjust if needed, case-insensitive compare)
+            const expectedHeaders = ["Fecha Sugerida", "Tema/Idea Específica", "Formato Sugerido", "Plataforma Principal", "Objetivo Específico", "Hook Sugerido", "CTA Sugerido"];
+            if (headers.length !== expectedHeaders.length) {
+                 console.warn("Markdown table header count mismatch.");
+                 // return []; // Or try to parse anyway if flexible
+            }
+
+            const data = [];
+            for (let i = 2; i < lines.length; i++) {
+                const values = lines[i].split('|').map(v => v.trim()).filter(v => v);
+                if (values.length === headers.length) {
+                    const row = {};
+                    headers.forEach((header, index) => {
+                        // Use expected header names as keys for consistency
+                        const key = expectedHeaders[index] || `Columna ${index + 1}`;
+                        row[key] = values[index];
+                    });
+                    data.push(row);
+                }
+            }
+            return data;
+        }
+
+
+        // Map action names to functions
+        const aiActionsMap = {
+            generateIdeas, suggestFormats, refineObjective, suggestPostingTimes,
+            generateRelatedTopics, generateHooks, generateCarouselOutline,
+            generateVideoScriptIdea, improveScriptClarity, suggestVisuals,
+            generateShotlist, suggestDesignStyles, provideTechTips,
+            suggestEditingImprovements, generateTitlesCaptions, checkReadability,
+            generateHashtags, draftCaption, suggestCTAVariations,
+            suggestEngagementQuestions, identifyKPIs,
+            generateGridIdeas // Added new action
+        };
+
+        // --- UI MODULE ---
+        function applyTheme(theme) { if (theme === 'light') { document.body.classList.add('light-mode'); } else { document.body.classList.remove('light-mode'); } const toggle = document.getElementById('theme-toggle'); if (toggle) { toggle.checked = theme === 'light'; } }
+        function renderDashboardView(data) { const container = document.getElementById('dashboard-view'); if (!container) return; container.innerHTML = `<h2 class="text-3xl font-bold mb-6 text-white">Dashboard</h2> <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"> <div class="card col-span-1 md:col-span-2"> <h3 class="text-lg font-semibold mb-4 text-[var(--text-secondary)]">Acciones Rápidas</h3> <div class="flex flex-wrap gap-4"> <button id="start-new-content-btn-dash" class="btn btn-primary"> <svg data-lucide="plus-circle" class="icon mr-2"></svg> Iniciar Nuevo Contenido </button> <button data-view="library" class="nav-btn btn btn-secondary"> <svg data-lucide="library" class="icon mr-2"></svg> Ver Biblioteca </button> </div> </div> <div class="card flex flex-col items-center justify-center text-center"> <svg data-lucide="flame" class="icon-xl text-orange-400 mb-2"></svg> <span class="text-4xl font-bold text-white stat-pulse" id="dashboard-streak">🔥 ${data.userStats.streak}</span> <span class="text-sm text-[var(--text-muted)] mt-1">Días de Racha</span> </div> <div class="card col-span-1 md:col-span-2"> <h3 class="text-lg font-semibold mb-4 text-[var(--text-secondary)]">Contenido en Progreso</h3> <div id="in-progress-list" class="space-y-3 max-h-60 overflow-y-auto pr-2"></div> </div> <div class="card"> <h3 class="text-lg font-semibold mb-4 text-[var(--text-secondary)]">Logros Recientes</h3> <div id="recent-achievements-list" class="space-y-3"></div> <button data-view="achievements" class="nav-btn btn btn-ghost text-xs mt-4">Ver Todos</button> </div> </div>`; renderDashboardLists(data); }
+        function renderDashboardLists(data) { const ipl = document.getElementById('in-progress-list'); if (ipl) { const ipi = data.contentPieces.filter(p => p.status === 'in_progress'); if (ipi.length > 0) { ipl.innerHTML = ipi.map(item => `<div class="flex justify-between items-center p-3 bg-[var(--bg-tertiary)] rounded-lg hover:bg-opacity-80 cursor-pointer transition-colors" data-content-id="${item.id}" onclick="app.navigateToWorkflow('${item.id}')"><span class="font-medium truncate pr-2">${item.title}</span><span class="text-xs text-[var(--text-muted)] whitespace-nowrap">${calculateProgress(item)}%</span></div>`).join(''); } else { ipl.innerHTML = `<p class="text-[var(--text-muted)] text-center py-4">No hay contenido activo.</p>`; } } const ral = document.getElementById('recent-achievements-list'); if (ral) { const ra = data.userStats.achievements.slice(-3).map(id => achievementsList.find(a => a.id === id)).filter(a => a).reverse(); if (ra.length > 0) { ral.innerHTML = ra.map(ach => `<div class="flex items-center gap-3 p-2 bg-[var(--bg-tertiary)] rounded-lg"><svg data-lucide="${ach.icon}" class="icon text-[var(--accent-primary)] flex-shrink-0"></svg><div><p class="font-semibold text-sm">${ach.name}</p><p class="text-xs text-[var(--text-muted)]">${ach.description}</p></div></div>`).join(''); } else { ral.innerHTML = `<p class="text-[var(--text-muted)] text-center py-4">Aún no hay logros.</p>`; } } }
+        function renderWorkflowView(contentPiece) {
+            console.log("Rendering workflow view... ", contentPiece?.id);
+            const container = document.getElementById('workflow-view');
+            if (!container) return;
+            if (!contentPiece) { container.innerHTML = `<div class="flex justify-between items-center mb-6"><h2 class="text-3xl font-bold text-white">Workflow Activo</h2><button id="back-to-dashboard-btn-wf" class="btn btn-ghost"><svg data-lucide="arrow-left" class="icon mr-2"></svg> Volver</button></div><p class="text-center text-[var(--text-muted)] py-10">Selecciona o inicia un nuevo contenido.</p>`; document.getElementById('back-to-dashboard-btn-wf')?.addEventListener('click', () => app.switchView('dashboard')); return; }
+            const createContextInput = (id, label, value, placeholder) => {
+                // Crear un dropdown de plataformas en lugar de un input para 'platform'
+                if (id === 'platform') {
+                    const platforms = ['Instagram', 'TikTok', 'LinkedIn', 'YouTube', 'Twitch', 'X'];
+                    const selectedPlatforms = value ? value.split(',').map(p => p.trim()) : [];
+                    
+                    return `<div class="mb-2">
+                        <label for="${contentPiece.id}-${id}" class="block text-xs font-medium text-[var(--text-muted)] mb-1">${label}:</label>
+                        <div class="platform-selector relative">
+                            <div class="custom-multiselect">
+                                <select id="${contentPiece.id}-${id}" data-context-key="${id}" class="input-field input-field-sm ai-context-input hidden" multiple>
+                                    ${platforms.map(platform => 
+                                        `<option value="${platform}" ${selectedPlatforms.includes(platform) ? 'selected' : ''}>${platform}</option>`
+                                    ).join('')}
+                                </select>
+                                <div class="selected-options-display rounded-md p-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] min-h-[38px] cursor-pointer flex flex-wrap gap-1">
+                                    ${selectedPlatforms.length > 0 ? 
+                                        selectedPlatforms.map(platform => 
+                                            `<span class="platform-tag bg-[var(--accent-primary-subtle)] text-[var(--accent-primary)] text-xs py-1 px-2 rounded-full flex items-center">
+                                                <span class="platform-name">${platform}</span>
+                                                <span class="remove-platform" data-platform="${platform}">×</span>
+                                            </span>`
+                                        ).join('') : 
+                                        '<span class="text-[var(--text-muted)] text-sm">Haz clic aquí para seleccionar...</span>'
+                                    }
+                                </div>
+                                <div class="platform-dropdown hidden absolute z-10 mt-1 w-full rounded-md shadow-lg bg-[var(--bg-secondary)] border border-[var(--border-color)]">
+                                    ${platforms.map(platform => 
+                                        `<div class="platform-option p-2 hover:bg-[var(--bg-tertiary)] cursor-pointer flex items-center ${selectedPlatforms.includes(platform) ? 'selected text-[var(--accent-primary)]' : ''}" data-value="${platform}">
+                                            <span class="checkmark mr-2 ${selectedPlatforms.includes(platform) ? '' : 'invisible'}">✓</span>
+                                            ${platform}
+                                        </div>`
+                                    ).join('')}
+                                </div>
+                            </div>
+                            <small class="text-xs text-[var(--text-muted)] mt-1">Clic para abrir, selecciona múltiples plataformas</small>
+                        </div>
+                    </div>`;
+                }
+                
+                // Agregar el botón de mejora con IA para topic, audience y objective
+                const showAiEnhanceButton = ['topic', 'audience', 'objective'].includes(id);
+                
+                return `<div class="mb-2">
+                    <label for="${contentPiece.id}-${id}" class="block text-xs font-medium text-[var(--text-muted)] mb-1">${label}:</label>
+                    <div class="relative">
+                        <input type="text" id="${contentPiece.id}-${id}" data-context-key="${id}" value="${value || ''}" placeholder="${placeholder}" class="input-field input-field-sm ai-context-input pr-10">
+                        ${showAiEnhanceButton ? `
+                        <button class="ai-enhance-btn absolute right-2 top-1/2 transform -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--accent-primary)] transition-colors" 
+                            data-field-id="${contentPiece.id}-${id}" data-context-key="${id}" title="Mejorar con IA">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"></path>
+                                <path d="M16 12l-3-2.5v5L16 12z"></path>
+                                <path d="M8 12h7"></path>
+                            </svg>
+                            <span class="ai-tooltip">Mejorar texto con IA</span>
+                        </button>` : ''}
+                    </div>
+                </div>`;
+            };
+            
+            container.innerHTML = `
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-3xl font-bold text-white truncate pr-4" title="${contentPiece.title}">Workflow: ${contentPiece.title}</h2>
+                    <button id="back-to-dashboard-btn-wf" class="btn btn-ghost flex-shrink-0"><svg data-lucide="arrow-left" class="icon mr-2"></svg> Volver</button>
+                </div>
+                <div class="card mb-6">
+                    <h3 class="text-lg font-semibold mb-3 text-[var(--text-secondary)]">Contexto General (Para IA)</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        ${createContextInput('topic', 'Tema Principal', contentPiece.aiContext?.topic, 'Ej: Consejos productividad')}
+                        ${createContextInput('audience', 'Audiencia Objetivo', contentPiece.aiContext?.audience, 'Ej: Emprendedores')}
+                        ${createContextInput('platform', 'Plataforma Principal', contentPiece.aiContext?.platform, 'Ej: Instagram Reels')}
+                        ${createContextInput('objective', 'Objetivo Principal', contentPiece.aiContext?.objective, 'Ej: Aumentar guardados')}
+                    </div>
+                    <label for="content-notes-${contentPiece.id}" class="block text-sm font-medium text-[var(--text-secondary)] mt-4 mb-2">Notas Generales:</label>
+                    <textarea id="content-notes-${contentPiece.id}" class="textarea-field" placeholder="Añade notas o ideas generales...">${contentPiece.notes || ''}</textarea>
+                </div>
+                <div id="workflow-steps-container-${contentPiece.id}" class="space-y-6">
+                 ${workflowSteps.map((step, index) => {
+                     const stepData = contentPiece.steps[step.id] || { status: 'pending', aiSuggestions: [] };
+                     const isDone = stepData.status === 'done';
+                     const stepPoints = step.points;
+                     const aiActions = step.aiActions || [];
+                     // Special UI for Grid step
+                     const gridStepUI = step.id === 'grid' ? `
+                         <div class="flex flex-col sm:flex-row items-center gap-3 mt-3 border-t border-[var(--border-color)] pt-3">
+                              <label for="grid-rows-${contentPiece.id}" class="text-xs text-[var(--text-muted)] whitespace-nowrap">Generar filas:</label>
+                              <input type="number" id="grid-rows-${contentPiece.id}" value="5" min="1" max="20" class="input-field w-20 text-center">
+                              <button class="btn btn-secondary btn-sm ai-action-btn flex-grow sm:flex-grow-0" data-action="generateGridIdeas" data-content-id="${contentPiece.id}" data-step-id="${step.id}">
+                                  <svg data-lucide="sparkles" class="icon icon-sm mr-1"></svg> Generar Ideas para Grilla
+                              </button>
+                              <button id="download-grid-btn-${contentPiece.id}" class="btn btn-success btn-sm flex-grow sm:flex-grow-0" data-content-id="${contentPiece.id}" disabled>
+                                  <svg data-lucide="download" class="icon icon-sm mr-1"></svg> Descargar Grilla (.xlsx)
+                              </button>
+                         </div>
+                     ` : '';
+
+                     return `
+                         <div class="card flex flex-col gap-4 transition-opacity duration-300 ${isDone ? 'opacity-70' : 'opacity-100'}">
+                             <div class="flex flex-col md:flex-row items-start md:items-center gap-4">
+                                 <div class="flex items-center gap-3 w-full md:w-auto flex-shrink-0">
+                                    <span class="text-2xl font-bold text-[var(--accent-primary)]">${index + 1}</span>
+                                    <svg data-lucide="${step.icon}" class="icon-lg text-[var(--accent-secondary)]"></svg>
+                                 </div>
+                                 <div class="flex-grow">
+                                     <h3 class="text-lg font-semibold mb-1">${step.name}</h3>
+                                     <p class="text-xs text-[var(--text-muted)] mb-2">Puntos: ${stepPoints}</p>
+                                 </div>
+                                 <div class="flex items-center gap-3 ml-auto flex-shrink-0 pt-2 md:pt-0 self-start md:self-center">
+                                     <span class="text-sm font-medium ${isDone ? 'text-[var(--accent-success)]' : 'text-[var(--text-muted)]'}">
+                                         ${isDone ? 'Completado' : 'Pendiente'}
+                                     </span>
+                                     <input type="checkbox" id="step-${contentPiece.id}-${step.id}" class="custom-checkbox" data-step-id="${step.id}" data-content-id="${contentPiece.id}" data-points="${stepPoints}" ${isDone ? 'checked' : ''} onchange="app.handleStepToggle(event)">
+                                 </div>
+                             </div>
+                             ${aiActions.length > 0 ? `
+                                 <div class="border-t border-[var(--border-color)] pt-4 mt-2">
+                                     <h4 class="text-sm font-semibold mb-3 text-[var(--text-secondary)]">Asistencia IA ✨</h4>
+                                     <div class="flex flex-wrap gap-2 mb-3">
+                                        ${aiActions.map(action => {
+                                             // Exclude generateGridIdeas button here, handled separately
+                                             if (action === 'generateGridIdeas') return '';
+                                             
+                                             // Mapeo personalizado de nombres en inglés a español
+                                             let buttonText = '';
+                                             if (action === 'generateIdeas') {
+                                                 buttonText = 'Generar Ideas';
+                                             } else if (action === 'suggestFormats') {
+                                                 buttonText = 'Sugerir Formatos';
+                                             } else if (action === 'refineObjective') {
+                                                 buttonText = 'Refinar Objetivo';
+                                             } else if (action === 'suggestPostingTimes') {
+                                                 buttonText = 'Sugerir Horarios';
+                                             } else if (action === 'generateRelatedTopics') {
+                                                 buttonText = 'Generar Temas Relacionados';
+                                             } else if (action === 'generateHooks') {
+                                                 buttonText = 'Generar Ganchos';
+                                             } else if (action === 'generateCarouselOutline') {
+                                                 buttonText = 'Generar Esquema de Carrusel';
+                                             } else if (action === 'generateVideoScriptIdea') {
+                                                 buttonText = 'Generar Idea de Guión';
+                                             } else if (action === 'improveScriptClarity') {
+                                                 buttonText = 'Mejorar Claridad del Guión';
+                                             } else if (action === 'suggestVisuals') {
+                                                 buttonText = 'Sugerir Visuales';
+                                             } else if (action === 'generateShotlist') {
+                                                 buttonText = 'Generar Lista de Planos';
+                                             } else if (action === 'suggestDesignStyles') {
+                                                 buttonText = 'Sugerir Estilos de Diseño';
+                                             } else if (action === 'provideTechTips') {
+                                                 buttonText = 'Dar Consejos Técnicos';
+                                             } else if (action === 'suggestEditingImprovements') {
+                                                 buttonText = 'Sugerir Mejoras de Edición';
+                                             } else if (action === 'generateTitlesCaptions') {
+                                                 buttonText = 'Generar Títulos y Leyendas';
+                                             } else if (action === 'checkReadability') {
+                                                 buttonText = 'Revisar Legibilidad';
+                                             } else if (action === 'generateHashtags') {
+                                                 buttonText = 'Generar Hashtags';
+                                             } else if (action === 'draftCaption') {
+                                                 buttonText = 'Borrador de Leyenda';
+                                             } else if (action === 'suggestCTAVariations') {
+                                                 buttonText = 'Sugerir Variaciones de CTA';
+                                             } else if (action === 'suggestEngagementQuestions') {
+                                                 buttonText = 'Sugerir Preguntas de Engagement';
+                                             } else if (action === 'identifyKPIs') {
+                                                 buttonText = 'Identificar KPIs';
+                                             } else {
+                                                 // Para otros botones, usar el reemplazo genérico
+                                                 buttonText = action.replace(/([A-Z])/g, ' $1')
+                                                     .replace(/^./, str => str.toUpperCase())
+                                                     .replace('generate', 'Generar')
+                                                     .replace('suggest', 'Sugerir')
+                                                     .replace('refine', 'Refinar')
+                                                     .replace('improve', 'Mejorar')
+                                                     .replace('provide', 'Dar')
+                                                     .replace('check', 'Revisar')
+                                                     .replace('draft', 'Borrador')
+                                                     .replace('identify', 'Identificar');
+                                             }
+                                             
+                                             return `<button class="btn btn-secondary btn-sm ai-action-btn" data-action="${action}" data-content-id="${contentPiece.id}" data-step-id="${step.id}"><svg data-lucide="sparkles" class="icon icon-sm mr-1"></svg> ${buttonText}</button>`
+                                         }).join('')}
+                                     </div>
+                                     ${gridStepUI}
+                                     <div id="ai-loading-${contentPiece.id}-${step.id}" class="hidden flex items-center gap-2 text-xs text-[var(--text-muted)] my-2"><div class="loader"></div> Generando...</div>
+                                     <div id="ai-result-container-${contentPiece.id}-${step.id}" class="${stepData.aiSuggestions?.length > 0 ? '' : 'hidden'}">
+                                         <div class="ai-result-header">
+                                             <small class="text-xs text-[var(--text-muted)]">Respuesta IA</small>
+                                             <button class="copy-btn" onclick="app.copyToClipboard('ai-result-${contentPiece.id}-${step.id}')" title="Copiar al portapapeles">
+                                                 <svg data-lucide="clipboard-copy" class="icon icon-sm"></svg>
+                                             </button>
+                                         </div>
+                                         <div id="ai-result-${contentPiece.id}-${step.id}" class="ai-result-area markdown">${stepData.aiSuggestions?.map(s => s.substring(s.indexOf('\n')+1)).join('\n\n---\n\n') || ''}</div>
+                                     </div>
+                                 </div>
+                             ` : ''}
+                         </div>
+                     `;
+                 }).join('')}
+                 <div class="mt-8 text-center">
+                      <button id="complete-content-btn-${contentPiece.id}" class="btn btn-success ${calculateProgress(contentPiece) === 100 ? '' : 'opacity-50 cursor-not-allowed'}" ${calculateProgress(contentPiece) === 100 ? '' : 'disabled'}>
+                          <svg data-lucide="check-circle" class="icon mr-2"></svg> Marcar Contenido Completado
+                      </button>
+                 </div>
+                </div>
+            `;
+            // Add event listeners (delegation handles most, but specific ones might need re-binding if not using delegation)
+            document.getElementById(`back-to-dashboard-btn-wf`)?.addEventListener('click', () => app.switchView('dashboard'));
+            document.getElementById(`content-notes-${contentPiece.id}`)?.addEventListener('change', (e) => app.updateContentNotes(contentPiece.id, e.target.value));
+            document.getElementById(`complete-content-btn-${contentPiece.id}`)?.addEventListener('click', () => app.markContentComplete(contentPiece.id));
+            document.querySelectorAll(`#workflow-view .ai-context-input`).forEach(input => input.addEventListener('change', (e) => {
+                // Special handling for multiple select platform dropdown
+                if (e.target.multiple && e.target.dataset.contextKey === 'platform') {
+                    const selectedOptions = Array.from(e.target.selectedOptions).map(option => option.value);
+                    app.updateAIContext(contentPiece.id, e.target.dataset.contextKey, selectedOptions.join(', '));
+                } else {
+                    app.updateAIContext(contentPiece.id, e.target.dataset.contextKey, e.target.value);
+                }
+            }));
+            // Add listener for the download button specifically
+            const downloadBtn = document.getElementById(`download-grid-btn-${contentPiece.id}`);
+            if (downloadBtn) {
+                downloadBtn.addEventListener('click', () => app.handleDownloadGrid(contentPiece.id));
+                // Check if there's already generated data to enable the button
+                 if (app.generatedGridData && app.generatedGridData.contentId === contentPiece.id) {
+                     downloadBtn.disabled = false;
+                 }
+            }
+            
+            // ... After rendering the view content
+            // Initialize the custom multiselect component for the newly rendered workflow
+            setTimeout(() => {
+                console.log("Initializing platform selector for new workflow");
+                const select = document.querySelector(`#workflow-view select[data-context-key="platform"]`);
+                if (select) {
+                    // Refresh the display just in case
+                    updateMultiselectDisplay(select);
+                    console.log("Platform selector initialized");
+                } else {
+                    console.log("No platform selector found");
+                }
+            }, 100);
+        }
+        function renderLibraryView(allPieces, searchTerm = '', statusFilter = 'all') { const container = document.getElementById('library-view'); if (!container) return; container.innerHTML = `<h2 class="text-3xl font-bold mb-6 text-white">Biblioteca Contenido</h2><div class="mb-6 flex flex-col sm:flex-row gap-4"><input type="text" id="library-search" value="${searchTerm}" placeholder="Buscar..." class="input-field flex-grow"><select id="library-filter-status" class="select-field w-full sm:w-48"><option value="all" ${statusFilter === 'all' ? 'selected' : ''}>Todos</option><option value="pending" ${statusFilter === 'pending' ? 'selected' : ''}>Pendiente</option><option value="in_progress" ${statusFilter === 'in_progress' ? 'selected' : ''}>Progreso</option><option value="done" ${statusFilter === 'done' ? 'selected' : ''}>Completado</option></select></div><div id="library-list" class="space-y-4"></div>`; document.getElementById('library-search')?.addEventListener('input', (e) => app.filterLibrary(e.target.value, document.getElementById('library-filter-status').value)); document.getElementById('library-filter-status')?.addEventListener('change', (e) => app.filterLibrary(document.getElementById('library-search').value, e.target.value)); renderLibraryList(allPieces, searchTerm, statusFilter); }
+        function renderLibraryList(allPieces, searchTerm = '', statusFilter = 'all') { const listContainer = document.getElementById('library-list'); if (!listContainer) return; const filteredPieces = allPieces.filter(piece => (piece.title.toLowerCase().includes(searchTerm.toLowerCase())) && (statusFilter === 'all' || piece.status === statusFilter)).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)); if (filteredPieces.length > 0) { listContainer.innerHTML = filteredPieces.map(item => `<div class="card flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:border-[var(--accent-primary)] transition-colors"><div class="flex-grow cursor-pointer min-w-0" onclick="app.navigateToWorkflow('${item.id}')"><h4 class="font-semibold text-base mb-1 truncate" title="${item.title}">${item.title}</h4><p class="text-xs text-[var(--text-muted)]">Creado: ${new Date(item.createdAt).toLocaleDateString()}</p><div class="progress-bar-bg mt-2 max-w-xs"><div class="progress-bar-fill" style="width: ${calculateProgress(item)}%;"></div></div></div><div class="flex items-center gap-3 flex-shrink-0 mt-2 sm:mt-0"><span class="badge ${item.status === 'done' ? 'badge-success' : (item.status === 'in_progress' ? 'badge-primary' : 'badge-outline')}">${item.status === 'done' ? 'Completado' : (item.status === 'in_progress' ? 'En Progreso' : 'Pendiente')}</span><button class="btn btn-ghost p-2" onclick="app.deleteContentPiece('${item.id}')" title="Eliminar"><svg data-lucide="trash-2" class="icon text-red-400 hover:text-red-500"></svg></button></div></div>`).join(''); } else { listContainer.innerHTML = `<p class="text-center text-[var(--text-muted)] py-10">No se encontraron contenidos.</p>`; } }
+        function renderAchievementsView(data) { const container = document.getElementById('achievements-view'); if (!container) return; container.innerHTML = `<h2 class="text-3xl font-bold mb-6 text-white">Logros y Estadísticas</h2> <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8"> <div class="card text-center"><svg data-lucide="star" class="icon-xl text-yellow-400 mx-auto mb-2"></svg><span class="block text-4xl font-bold text-white" id="stats-points">${data.userStats.points}</span><span class="text-sm text-[var(--text-muted)] mt-1">Puntos Totales</span></div> <div class="card text-center"><svg data-lucide="bar-chart-3" class="icon-xl text-[var(--accent-primary)] mx-auto mb-2"></svg><span class="block text-4xl font-bold text-white" id="stats-level">Nivel ${data.userStats.level}</span><span class="text-sm text-[var(--text-muted)] mt-1">Nivel Actual</span></div> <div class="card text-center"><svg data-lucide="calendar-check" class="icon-xl text-[var(--accent-success)] mx-auto mb-2"></svg><span class="block text-4xl font-bold text-white" id="stats-completed">${data.contentPieces.filter(p => p.status === 'done').length}</span><span class="text-sm text-[var(--text-muted)] mt-1">Contenidos Completados</span></div> </div> <h3 class="text-xl font-semibold mb-4 text-[var(--text-secondary)]">Logros Desbloqueados</h3> <div id="achievements-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>`; renderAchievementsList(data); }
+        function renderAchievementsList(data) { const listContainer = document.getElementById('achievements-list'); if (!listContainer) return; const earnedAchievements = data.userStats.achievements; if (achievementsList.length > 0) { listContainer.innerHTML = achievementsList.map(ach => { const isEarned = earnedAchievements.includes(ach.id); return `<div class="card flex items-center gap-4 ${isEarned ? 'opacity-100 border-[var(--accent-primary)]' : 'opacity-50'}"><div class="p-3 bg-[var(--bg-tertiary)] rounded-full"><svg data-lucide="${ach.icon}" class="icon-lg ${isEarned ? 'text-[var(--accent-primary)]' : 'text-[var(--text-muted)]'}"></svg></div><div class="flex-grow"><h4 class="font-semibold text-base ${isEarned ? 'text-white' : 'text-[var(--text-secondary)]'}">${ach.name}</h4><p class="text-xs text-[var(--text-muted)]">${ach.description}</p>${isEarned ? '<span class="badge badge-success text-xs mt-1">Desbloqueado</span>' : ''}</div></div>`; }).join(''); } else { listContainer.innerHTML = `<p class="text-center text-[var(--text-muted)] py-10 col-span-full">No hay logros definidos.</p>`; } }
+        function updateStatsPanel(userStats) { const pE = document.getElementById('user-points'); const lE = document.getElementById('user-level'); const sE = document.getElementById('user-streak'); const lpE = document.getElementById('level-progress'); if (pE) pE.textContent = userStats.points; if (lE) lE.textContent = `Nivel ${userStats.level}`; if (sE) sE.textContent = `🔥 ${userStats.streak}`; if (lpE) { lpE.style.width = `${getLevelProgress({ userStats })}%`; } }
+
+        // --- APP MODULE ---
+        const app = {
+            data: loadData(),
+            activeView: 'dashboard',
+            aiLoadingStates: {},
+            generatedGridData: null, // Temporary storage for grid data to download
+
+            init() { console.log("Init v4..."); applyTheme(this.data.theme); this.setupEventListeners(); this.render(); checkAchievements(this.data); updateStreak(this.data); this.save(); console.log("Init v4 Done.", this.data); },
+            save() { saveData(this.data); /* console.log("Data saved."); */ },
+            render() {
+                 updateStatsPanel(this.data.userStats);
+                 document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+                 const activeViewEl = document.getElementById(`${this.activeView}-view`);
+                 if (activeViewEl) activeViewEl.classList.add('active');
+                 // Render specific view content
+                 switch (this.activeView) {
+                     case 'dashboard': renderDashboardView(this.data); break;
+                     case 'workflow': const activePiece = this.data.contentPieces.find(p => p.id === this.data.activeContentId); renderWorkflowView(activePiece); break;
+                     case 'library': const search = document.getElementById('library-search')?.value ?? ''; const filter = document.getElementById('library-filter-status')?.value ?? 'all'; renderLibraryView(this.data.contentPieces, search, filter); break;
+                     case 'achievements': renderAchievementsView(this.data); break;
+                 }
+                 // Update nav button active states
+                 document.querySelectorAll('.nav-btn').forEach(btn => { btn.classList.remove('active', 'bg-[var(--bg-tertiary)]'); if(btn.dataset.view === this.activeView) btn.classList.add('active', 'bg-[var(--bg-tertiary)]'); });
+                 // IMPORTANT: Call lucide.createIcons() AFTER new HTML is added to the DOM
+                 lucide.createIcons();
+                 // console.log(`Rendered: ${this.activeView}`);
+            },
+            filterLibrary(searchTerm, statusFilter) { renderLibraryList(this.data.contentPieces, searchTerm, statusFilter); },
+            switchView(viewId) { if (this.activeView !== viewId) { this.activeView = viewId; if (viewId !== 'workflow') { this.data.activeContentId = null; this.generatedGridData = null; /* Clear grid data when leaving workflow */ this.save(); } this.render(); } }, // Clear grid data on view switch
+            navigateToWorkflow(contentId) { this.data.activeContentId = contentId; this.generatedGridData = null; /* Clear grid data when loading new workflow */ this.save(); this.switchView('workflow'); },
+            handleStepToggle(event) { const checkbox = event.target; const contentId = checkbox.dataset.contentId; const stepId = checkbox.dataset.stepId; const points = parseInt(checkbox.dataset.points || '0'); const isChecked = checkbox.checked; const contentPiece = this.data.contentPieces.find(p => p.id === contentId); if (contentPiece && stepId) { const newStatus = isChecked ? 'done' : 'pending'; const changed = updateStepStatus(contentPiece, stepId, newStatus); if (changed) { if (newStatus === 'done') { addPoints(this.data, points); updateStreak(this.data); checkAchievements(this.data, { type: 'step_complete', stepId: stepId, contentId: contentId }); } checkAndUpdateOverallStatus(contentPiece); this.save(); this.render(); } } },
+            startNewContent() { console.log("startNewContent called"); const title = prompt("Título para nuevo contenido:", "Contenido " + (this.data.contentPieces.length + 1)); if (title !== null && title.trim() !== "") { console.log("Creating new piece:", title); const newPiece = createNewContentPiece(title.trim()); this.data.contentPieces.push(newPiece); checkAchievements(this.data); this.save(); this.navigateToWorkflow(newPiece.id); } else { console.log("Prompt cancelled or empty"); } },
+            updateContentNotes(contentId, notes) { const piece = this.data.contentPieces.find(p => p.id === contentId); if (piece) { piece.notes = notes; this.save(); /* console.log(`Notes updated: ${contentId}`); */ } },
+            updateAIContext(contentId, key, value) { const piece = this.data.contentPieces.find(p => p.id === contentId); if (piece?.aiContext) { piece.aiContext[key] = value; this.save(); /* console.log(`AI Context (${key}) updated: ${contentId}`); */ } },
+            markContentComplete(contentId) { const piece = this.data.contentPieces.find(p => p.id === contentId); if (piece && calculateProgress(piece) === 100) { piece.status = 'done'; const today = new Date().toISOString().split('T')[0]; const completedInOneDay = workflowSteps.every(step => piece.steps[step.id]?.completedAt?.startsWith(today)); checkAchievements(this.data, { type: 'content_complete', contentId: contentId, completedInOneDay: completedInOneDay }); addPoints(this.data, 50); this.save(); this.switchView('library'); } else { alert("Completa todos los pasos."); } },
+            deleteContentPiece(contentId) { if (confirm("¿Eliminar contenido?")) { this.data.contentPieces = this.data.contentPieces.filter(p => p.id !== contentId); if (this.data.activeContentId === contentId) this.data.activeContentId = null; this.save(); this.render(); } },
+            async handleAIAction(contentId, stepId, action) {
+                const piece = this.data.contentPieces.find(p => p.id === contentId);
+                if (!piece) return;
+                const loadingEl = document.getElementById(`ai-loading-${contentId}-${stepId}`);
+                const resultContainerEl = document.getElementById(`ai-result-container-${contentId}-${stepId}`);
+                const resultEl = document.getElementById(`ai-result-${contentId}-${stepId}`);
+                const btnEl = document.querySelector(`.ai-action-btn[data-action="${action}"][data-content-id="${contentId}"]`);
+                const downloadBtn = document.getElementById(`download-grid-btn-${contentId}`);
+
+                const aiFunction = aiActionsMap[action];
+                if (!aiFunction) { console.error("Unknown AI action:", action); alert("Acción IA desconocida."); return; }
+
+                if (loadingEl) loadingEl.style.display = 'flex';
+                if (btnEl) btnEl.disabled = true;
+                if (action === 'generateGridIdeas' && downloadBtn) downloadBtn.disabled = true; // Disable download while generating
+                this.generatedGridData = null; // Clear previous grid data
+
+                let result = null;
+                const context = piece.aiContext || {};
+                context.notes = piece.notes || '';
+
+                try {
+                    if (action === 'generateGridIdeas') {
+                         const rowsInput = document.getElementById(`grid-rows-${contentId}`);
+                         const numRows = parseInt(rowsInput?.value || '5');
+                         result = await generateGridIdeas(context, numRows, this.data.apiKey); // Returns parsed data or null
+                         if (result && Array.isArray(result)) {
+                             this.generatedGridData = { contentId: contentId, data: result }; // Store parsed data for download
+                             if (downloadBtn) downloadBtn.disabled = false; // Enable download
+                             // Display confirmation or preview in result area
+                             if(resultEl) {
+                                 resultEl.innerHTML = `✅ ${result.length} ideas generadas para la grilla. Haz clic en 'Descargar Grilla' para obtener el archivo .xlsx.`;
+                                 if (resultContainerEl) resultContainerEl.classList.remove('hidden');
+                             }
+                         } else {
+                              if(resultEl) {
+                                 resultEl.innerHTML = `❌ Error al generar o procesar las ideas para la grilla. Revisa la consola.`;
+                                 if (resultContainerEl) resultContainerEl.classList.remove('hidden');
+                              }
+                         }
+                    } else {
+                        result = await aiFunction(context, this.data.apiKey); // Returns text or null
+                         if (result) {
+                             if (!piece.steps[stepId].aiSuggestions) piece.steps[stepId].aiSuggestions = [];
+                             piece.steps[stepId].aiSuggestions.unshift(`--- ${new Date().toLocaleString()} ---\n${result}`);
+                             if(resultEl) {
+                                 // Format the response with improved markdown parsing
+                                 try {
+                                     const formattedResult = this.markdownToHTML(piece.steps[stepId].aiSuggestions.map(s => s.substring(s.indexOf('\n')+1)).join('\n\n---\n\n'));
+                                     resultEl.innerHTML = formattedResult;
+                                 } catch (e) {
+                                     console.error("Error formatting markdown:", e);
+                                     // Fallback to basic formatting
+                                     resultEl.innerHTML = piece.steps[stepId].aiSuggestions.map(s => {
+                                         const content = s.substring(s.indexOf('\n')+1);
+                                         return `<div class="ai-response">${content.replace(/\n/g, '<br>')}</div>`;
+                                     }).join('<hr>');
+                                 }
+                                 if (resultContainerEl) resultContainerEl.classList.remove('hidden');
+                                 resultEl.scrollTop = 0;
+                             }
+                         }
+                    }
+
+                     if (result) { // Check if any result was obtained (text or grid data)
+                         checkAchievements(this.data, { type: 'ai_used' });
+                         this.save();
+                     }
+
+                 } catch (error) { console.error("Error in handleAIAction:", error); }
+                 finally { if (loadingEl) loadingEl.style.display = 'none'; if (btnEl) btnEl.disabled = false; }
+            },
+            // --- Grid Download ---
+            handleDownloadGrid(contentId) {
+                 if (!this.generatedGridData || this.generatedGridData.contentId !== contentId || !this.generatedGridData.data || this.generatedGridData.data.length === 0) {
+                     alert("Primero genera las ideas para la grilla usando el botón de IA.");
+                     return;
+                 }
+                 if (typeof XLSX === 'undefined') {
+                      alert("Error: La librería SheetJS (xlsx) no está cargada.");
+                      return;
+                 }
+
+                 try {
+                     console.log("Generating XLSX with data:", this.generatedGridData.data);
+                     // Define headers explicitly in Spanish for the Excel file
+                     const headers = [
+                         "Fecha Sugerida", "Tema/Idea Específica", "Formato Sugerido",
+                         "Plataforma Principal", "Objetivo Específico", "Hook Sugerido", "CTA Sugerido"
+                     ];
+                     // Create worksheet ensuring header order
+                     const ws = XLSX.utils.json_to_sheet(this.generatedGridData.data, { header: headers });
+                     const wb = XLSX.utils.book_new();
+                     XLSX.utils.book_append_sheet(wb, ws, "Ideas Grilla Contenido");
+
+                     // Generate file name
+                     const piece = this.data.contentPieces.find(p => p.id === contentId);
+                     const fileName = `Grilla_${piece ? piece.title.replace(/[^a-z0-9]/gi, '_') : 'Contenido'}_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+                     // Trigger download
+                     XLSX.writeFile(wb, fileName);
+                     console.log("XLSX file generated and download triggered.");
+
+                 } catch (error) {
+                      console.error("Error generating XLSX file:", error);
+                      alert("Hubo un error al generar el archivo Excel.");
+                 }
+            },
+            // --- Settings Handling ---
+            toggleSettingsModal(show) { const modal = document.getElementById('settings-modal'); if (modal) { if (show) { const apiKeyInput = document.getElementById('api-key-input'); if (apiKeyInput) apiKeyInput.value = this.data.apiKey || ''; const themeToggle = document.getElementById('theme-toggle'); if (themeToggle) themeToggle.checked = this.data.theme === 'light'; modal.classList.add('active'); } else { modal.classList.remove('active'); } } },
+            saveApiKey() { const apiKeyInput = document.getElementById('api-key-input'); if (apiKeyInput) { this.data.apiKey = apiKeyInput.value.trim(); this.save(); alert("API Key guardada (¡Inseguro!)."); this.toggleSettingsModal(false); } },
+            toggleTheme() { this.data.theme = this.data.theme === 'dark' ? 'light' : 'dark'; applyTheme(this.data.theme); this.save(); },
+            setupEventListeners() {
+                const mainContent = document.getElementById('main-content');
+                // Event delegation for dynamic elements
+                mainContent?.addEventListener('click', (event) => {
+                    const target = event.target;
+                    if (target.closest('#start-new-content-btn-dash')) { this.startNewContent(); return; }
+                    const aiButton = target.closest('.ai-action-btn');
+                    if (aiButton) { this.handleAIAction(aiButton.dataset.contentId, aiButton.dataset.stepId, aiButton.dataset.action); return; }
+                    if (target.closest('#back-to-dashboard-btn-wf')) { this.switchView('dashboard'); return; }
+                    if (target.closest('[id^="complete-content-btn-"]')) { const contentId = target.closest('[id^="complete-content-btn-"]').id.replace('complete-content-btn-', ''); this.markContentComplete(contentId); return; }
+                    const workflowLink = target.closest('[onclick^="app.navigateToWorkflow"]'); if (workflowLink) { return; } // onclick handles it
+                    const navButtonDash = target.closest('#dashboard-view .nav-btn'); if (navButtonDash?.dataset.view) { this.switchView(navButtonDash.dataset.view); return; }
+                    // Added delegation for download button
+                    const downloadBtn = target.closest('[id^="download-grid-btn-"]');
+                    if (downloadBtn) { this.handleDownloadGrid(downloadBtn.dataset.contentId); return; }
+                     // Added delegation for delete button (if onclick removed)
+                     const deleteBtn = target.closest('.btn[onclick^="app.deleteContentPiece"]');
+                     if (deleteBtn) {
+                         // Extract ID and call delete (currently handled by onclick)
+                         // const contentId = deleteBtn.getAttribute('onclick').match(/'([^']+)'/)[1];
+                         // if (contentId) this.deleteContentPiece(contentId);
+                         return;
+                     }
+                    if (target.closest('.ai-enhance-btn')) {
+                        const btn = target.closest('.ai-enhance-btn');
+                        const fieldId = btn.dataset.fieldId;
+                        const contextKey = btn.dataset.contextKey;
+                        this.enhanceWithAI(fieldId, contextKey);
+                         return;
+                     }
+                });
+                mainContent?.addEventListener('change', (event) => {
+                     const target = event.target;
+                     if (target.classList.contains('ai-context-input')) { 
+                         const contentId = target.id.split('-')[0]; 
+                         const key = target.dataset.contextKey; 
+                         if (contentId && key) {
+                             // Special handling for multiple select platform dropdown
+                             if (target.multiple && key === 'platform') {
+                                 // Get all selected options and join them with commas
+                                 const selectedOptions = Array.from(target.selectedOptions).map(option => option.value);
+                                 this.updateAIContext(contentId, key, selectedOptions.join(', '));
+                             } else {
+                                 this.updateAIContext(contentId, key, target.value);
+                             }
+                         }
+                         return; 
+                     }
+                     if (target.id.startsWith('content-notes-')) { const contentId = target.id.replace('content-notes-', ''); this.updateContentNotes(contentId, target.value); return; }
+                     if (target.classList.contains('custom-checkbox') && target.dataset.stepId) { this.handleStepToggle(event); return; }
+                     if (target.id === 'library-filter-status') { const search = document.getElementById('library-search')?.value ?? ''; this.filterLibrary(search, target.value); return; }
+                });
+                mainContent?.addEventListener('input', (event) => { if (event.target.id === 'library-search') { const filter = document.getElementById('library-filter-status')?.value ?? 'all'; this.filterLibrary(event.target.value, filter); return; } });
+                // Static elements listeners
+                document.querySelectorAll('.nav-btn').forEach(b => b.addEventListener('click', () => this.switchView(b.dataset.view)));
+                document.getElementById('settings-btn')?.addEventListener('click', () => this.toggleSettingsModal(true));
+                document.getElementById('close-settings-btn')?.addEventListener('click', () => this.toggleSettingsModal(false));
+                document.getElementById('save-api-key-btn')?.addEventListener('click', () => this.saveApiKey());
+                document.getElementById('theme-toggle')?.addEventListener('change', () => this.toggleTheme());
+                document.getElementById('settings-modal')?.addEventListener('click', (e) => { if (e.target === e.currentTarget) this.toggleSettingsModal(false); });
+            },
+            // Simple markdown to HTML converter
+            markdownToHTML(md) {
+                if (!md) return '';
+                
+                // Preserve numbered lists with **bold** prefixes that appear in the AI responses
+                md = md.replace(/(\d+)\.\s+\*\*([^*]+)\*\*\s*(.*?)(?=\n\d+\.|$)/gs, (match, num, bold, content) => {
+                    return `<div class="ai-item"><span class="ai-item-number">${num}.</span> <strong>${bold}</strong> ${content}</div>`;
+                });
+                
+                // Convert headers
+                md = md.replace(/#{1,6}\s+(.+)/g, (match, text) => {
+                    const level = match.trim().indexOf(' ');
+                    return `<h${level}>${text}</h${level}>`;
+                });
+                
+                // Convert bold
+                md = md.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+                
+                // Convert italic
+                md = md.replace(/\*(.+?)\*/g, '<em>$1</em>');
+                
+                // Handle numbered lists with special formatting for Power BI ideas
+                const numberedPattern = /^\d+\.\s+\*\*"([^"]+)"\*\*:\s+(.+)$/gm;
+                if (numberedPattern.test(md)) {
+                    md = '<ol class="number-list">' + 
+                        md.replace(numberedPattern, '<li><strong>"$1"</strong>: $2</li>') + 
+                        '</ol>';
+                } else {
+                    // Standard numbered lists
+                    md = md.replace(/^\d+\.\s+(.+)$/gm, '<li>$1</li>')
+                        .replace(/(<li>.+<\/li>\n?)+/g, '<ol>$&</ol>');
+                }
+                
+                // Convert bullet lists
+                md = md.replace(/^-\s+(.+)$/gm, '<li>$1</li>')
+                    .replace(/(<li>.+<\/li>\n?)+/g, '<ul>$&</ul>');
+                
+                // Convert code blocks
+                md = md.replace(/```(.+?)```/gs, '<pre><code>$1</code></pre>');
+                
+                // Convert inline code
+                md = md.replace(/`(.+?)`/g, '<code>$1</code>');
+                
+                // Convert links
+                md = md.replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2">$1</a>');
+                
+                // Format dividers
+                md = md.replace(/---/g, '<hr>');
+                
+                // Convert paragraphs (must come last and avoid processing HTML elements)
+                md = md.replace(/(?:^|\n)(?!<[houli]|<div|<pre|<hr|$)(.+)/g, '<p>$1</p>');
+                
+                return md;
+            },
+            
+            // Copy text to clipboard
+            copyToClipboard(elementId) {
+                const element = document.getElementById(elementId);
+                if (!element) return;
+                
+                let text = element.innerText || element.textContent;
+                
+                // Create temporary textarea for copying
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                textarea.setAttribute('readonly', '');
+                textarea.style.position = 'absolute';
+                textarea.style.left = '-9999px';
+                document.body.appendChild(textarea);
+                
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                
+                // Show feedback
+                showToast('✅ Texto copiado al portapapeles');
+            },
+            // Add a handler for the AI enhancement buttons
+            enhanceWithAI: async function(fieldId, contextKey) {
+                const inputElement = document.getElementById(fieldId);
+                if (!inputElement) return;
+                
+                const currentValue = inputElement.value;
+                if (!currentValue || currentValue.trim() === '') {
+                    alert('Por favor ingresa algún texto para mejorar.');
+                    return;
+                }
+                
+                // Show loading state
+                const btn = document.querySelector(`.ai-enhance-btn[data-field-id="${fieldId}"]`);
+                if (btn) {
+                    btn.innerHTML = '<div class="spinner-sm"></div>';
+                    btn.disabled = true;
+                }
+                
+                try {
+                    // Generate appropriate prompt based on context key
+                    let prompt = '';
+                    if (contextKey === 'topic') {
+                        prompt = `Eres un analista experto en Business Intelligence y especialista en PowerBI.
+                        
+Tu tarea es mejorar este título para un dashboard: "${currentValue}".
+
+Debes crear un título mejorado que:
+1. Mantenga la esencia del tema original (ventas, finanzas, marketing, etc.)
+2. Incluya términos técnicos de análisis de datos relevantes al contexto
+3. Incorpore elementos que sugieran qué información específica contendrá el dashboard
+4. Sea conciso pero informativo (máximo 40 caracteres)
+5. Tenga un formato profesional
+
+Si el texto menciona "ventas", elabora sobre qué TIPO específico de análisis de ventas (por canal, temporal, geográfico, por producto, comparativo, etc.)
+Si menciona "PowerBI", mantén esta referencia pero enriquécela con contexto de inteligencia empresarial
+Si es un dashboard, especifica qué tipo de visualización o análisis ofrece
+
+Por ejemplo:
+- "Ventas" → "Dashboard KPIs Ventas: Análisis Multidimensional"
+- "Dashboard de Ventas" → "Ventas Temporales: Tendencias y Canales"
+- "Finanzas PowerBI" → "PowerBI Finanzas: Insights Operativos Q3"
+
+Responde ÚNICAMENTE con el título mejorado, sin explicación ni formato adicional.`;
+                    } else if (contextKey === 'audience') {
+                        prompt = `Eres un especialista en data storytelling y segmentación de audiencias para Business Intelligence.
+
+Tu tarea es mejorar esta descripción de audiencia para un dashboard de PowerBI: "${currentValue}".
+
+Debes crear una descripción de audiencia que:
+1. Mantenga el público objetivo original
+2. Especifique el nivel de conocimiento técnico y familiaridad con datos
+3. Mencione roles o cargos específicos dentro de la organización
+4. Incluya contexto sobre sus necesidades de información
+5. Sea precisa y profesional (máximo 40 caracteres)
+
+Por ejemplo:
+- "Estudiantes" → "Estudiantes de analítica: nivel intermedio-avanzado" 
+- "Analistas" → "Analistas financieros con enfoque en KPIs"
+- "Gerentes" → "Gerentes operativos: toma de decisiones rápida"
+
+Responde ÚNICAMENTE con la descripción mejorada, sin explicación ni formato adicional.`;
+                    } else if (contextKey === 'objective') {
+                        prompt = `Eres un consultor senior de Business Intelligence especializado en objetivos estratégicos de dashboards.
+
+Tu tarea es mejorar este objetivo para un dashboard de PowerBI: "${currentValue}".
+
+Debes crear un objetivo que:
+1. Mantenga el propósito fundamental del original
+2. Especifique métricas o KPIs concretos que se buscan mejorar o monitorear
+3. Incluya la acción estratégica principal (comparar, identificar, optimizar, etc.)
+4. Mencione el impacto empresarial esperado
+5. Sea específico y accionable (máximo 40 caracteres)
+
+Por ejemplo:
+- "Generar decisiones" → "Optimizar decisiones comerciales con tendencias predictivas"
+- "Mejorar ventas" → "Impulsar conversión: análisis comparativo de canales"
+- "Visualizar datos" → "Identificar oportunidades mediante patrones temporales"
+
+Responde ÚNICAMENTE con el objetivo mejorado, sin explicación ni formato adicional.`;
+                    }
+                    
+                    // Call Gemini API
+                    const response = await fetch(GEMINI_API_ENDPOINT + this.data.apiKey, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{
+                                parts: [{ text: prompt }]
+                            }],
+                            generationConfig: {
+                                temperature: 0.2,
+                                maxOutputTokens: 100
+                            }
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+                        let enhancedText = data.candidates[0].content.parts[0].text.trim();
+                        
+                        // Clean up the response - remove any formatting, bullets, numbers, etc.
+                        enhancedText = enhancedText
+                            .replace(/^["'\*•\-\d\.\s]+|["'\*•\-\d\.\s]+$/g, '')  // Remove quotes, bullets, etc. at start/end
+                            .replace(/^\s*[\*\-•]\s+/gm, '')  // Remove bullet points
+                            .replace(/^\s*\d+\.\s+/gm, '')    // Remove numbered lists
+                            .replace(/^["']|["']$/g, '')      // Remove surrounding quotes
+                            .replace(/^.*?:\s*/i, '')         // Remove any intro text with colon
+                            .trim();
+                        
+                        // If the model returned nothing usable, don't update the field
+                        if (!enhancedText || enhancedText.length < 3) {
+                            console.error('AI returned unusable text');
+                            return;
+                        }
+                        
+                        // Update the input field with enhanced text
+                        inputElement.value = enhancedText;
+                        
+                        // Trigger change event to save the context
+                        const event = new Event('change', { bubbles: true });
+                        inputElement.dispatchEvent(event);
+                    } else {
+                        console.error('No response from Gemini API:', data);
+                    }
+                } catch (error) {
+                    console.error('Error enhancing with AI:', error);
+                } finally {
+                    // Restore button
+                    if (btn) {
+                        btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"></path>
+                            <path d="M16 12l-3-2.5v5L16 12z"></path>
+                            <path d="M8 12h7"></path>
+                        </svg>`;
+                        btn.disabled = false;
+                    }
+                }
+            },
+        };
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => { app.init(); });
+
+        function updateAIContext(contentPieceId) {
+            const contentPiece = app.data.contentPieces.find(p => p.id === contentPieceId);
+            if (!contentPiece) return;
+            
+            if (!contentPiece.aiContext) {
+                contentPiece.aiContext = {};
+            }
+            
+            document.querySelectorAll('[data-context-key]').forEach(input => {
+                const key = input.dataset.contextKey;
+                
+                // Handle multiple select for platforms
+                if (key === 'platform' && input.tagName === 'SELECT' && input.multiple) {
+                    const selectedOptions = Array.from(input.selectedOptions).map(option => option.value);
+                    contentPiece.aiContext[key] = selectedOptions.join(', ');
+                } else {
+                    contentPiece.aiContext[key] = input.value;
+                }
+            });
+            
+            // Update the UI to reflect changes
+            showNotification('AI Context updated', 'success');
+            saveContentPieces();
+        }
+
+        function loadContextValues(contentPieceId) {
+            const contentPiece = app.data.contentPieces.find(p => p.id === contentPieceId);
+            if (!contentPiece || !contentPiece.aiContext) return;
+            
+            document.querySelectorAll('[data-context-key]').forEach(input => {
+                const key = input.dataset.contextKey;
+                const value = contentPiece.aiContext[key] || '';
+                
+                // Handle platform dropdown with multiple selections
+                if (key === 'platform' && input.tagName === 'SELECT' && input.multiple) {
+                    const platformValues = value.split(',').map(p => p.trim()).filter(p => p);
+                    
+                    // Reset all selections first
+                    Array.from(input.options).forEach(option => {
+                        option.selected = false;
+                    });
+                    
+                    // Set selected for matching platforms
+                    if (platformValues.length > 0) {
+                        Array.from(input.options).forEach(option => {
+                            option.selected = platformValues.includes(option.value);
+                        });
+                    }
+                } else {
+                    input.value = value;
+                }
+            });
+        }
+
+        // Add event listeners for custom multiselect component
+        const setupMultiselect = () => {
+            // Ensure we can find and interact with the multiselect elements
+            console.log("Setting up platform selector");
+            
+            // Direct click handler for platform options
+            document.body.addEventListener('click', function(e) {
+                console.log("Document click", e.target);
+                
+                // Check specifically for remove platform button clicks first
+                if (e.target.classList.contains('remove-platform')) {
+                    console.log("Remove button clicked directly");
+                    e.stopPropagation();
+                    e.preventDefault();
+                    
+                    const platform = e.target.dataset.platform;
+                    const customMultiselect = e.target.closest('.custom-multiselect');
+                    const select = customMultiselect.querySelector('select');
+                    const option = select.querySelector(`option[value="${platform}"]`);
+                    
+                    if (option) {
+                        option.selected = false;
+                        
+                        // Update the option in the dropdown
+                        const dropdownOption = customMultiselect.querySelector(`.platform-option[data-value="${platform}"]`);
+                        if (dropdownOption) {
+                            dropdownOption.classList.remove('selected', 'text-[var(--accent-primary)]');
+                            dropdownOption.querySelector('.checkmark').classList.add('invisible');
+                        }
+                        
+                        // Update display immediately
+                        updateMultiselectDisplay(select);
+                        
+                        // Trigger change event
+                        const event = new Event('change', { bubbles: true });
+                        select.dispatchEvent(event);
+                    }
+                    return false;
+                }
+                
+                // Handle dropdown display toggle
+                else if (e.target.closest('.selected-options-display') && !e.target.closest('.remove-platform')) {
+                    e.stopPropagation();
+                    const display = e.target.closest('.selected-options-display');
+                    const dropdown = display.parentElement.querySelector('.platform-dropdown');
+                    if (dropdown) {
+                        // Close all other dropdowns first
+                        document.querySelectorAll('.platform-dropdown').forEach(d => {
+                            if (d !== dropdown) d.classList.add('hidden');
+                        });
+                        // Toggle this dropdown
+                        dropdown.classList.toggle('hidden');
+                    }
+                }
+                // Handle platform selection
+                else if (e.target.closest('.platform-option')) {
+                    e.stopPropagation();
+                    const option = e.target.closest('.platform-option');
+                    const customMultiselect = option.closest('.custom-multiselect');
+                    const select = customMultiselect.querySelector('select');
+                    const value = option.dataset.value;
+                    const optionEl = select.querySelector(`option[value="${value}"]`);
+                    
+                    if (optionEl) {
+                        optionEl.selected = !optionEl.selected;
+                        option.classList.toggle('selected');
+                        option.classList.toggle('text-[var(--accent-primary)]');
+                        option.querySelector('.checkmark').classList.toggle('invisible');
+                        
+                        // Update the display immediately
+                        updateMultiselectDisplay(select);
+                        
+                        // Trigger change event on select
+                        const event = new Event('change', { bubbles: true });
+                        select.dispatchEvent(event);
+                    }
+                }
+                // Close dropdowns when clicking outside
+                else if (!e.target.closest('.custom-multiselect')) {
+                    document.querySelectorAll('.platform-dropdown').forEach(dropdown => {
+                        dropdown.classList.add('hidden');
+                    });
+                }
+            });
+        };
+
+        const updateMultiselectDisplay = (select) => {
+            console.log("Updating multiselect display");
+            const display = select.closest('.custom-multiselect').querySelector('.selected-options-display');
+            const selectedOptions = Array.from(select.selectedOptions).map(option => option.value);
+            console.log("Selected options:", selectedOptions);
+            
+            if (selectedOptions.length > 0) {
+                display.innerHTML = selectedOptions.map(platform => 
+                    `<span class="platform-tag bg-[var(--accent-primary-subtle)] text-[var(--accent-primary)] text-xs py-1 px-2 rounded-full flex items-center">
+                        <span class="platform-name">${platform}</span>
+                        <span class="remove-platform" data-platform="${platform}">×</span>
+                    </span>`
+                ).join('');
+            } else {
+                display.innerHTML = '<span class="text-[var(--text-muted)] text-sm">Haz clic aquí para seleccionar...</span>';
+            }
+        };
+
+        // Initialize the custom multiselect component
+        setupMultiselect();
+    </script>
+</body>
+</html>
