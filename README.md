@@ -1,6 +1,6 @@
 # ContentFlow
 
-**ContentFlow Gamified v2 is a web-based, single-page application designed to streamline and gamify your content creation process. It provides a structured workflow, AI-powered assistance, and engaging gamification elements to help you consistently produce high-quality content.**
+**ContentFlow is a web-based, single-page application designed to streamline and gamify your content creation process. It provides a structured workflow, AI-powered assistance, and engaging gamification elements to help you consistently produce high-quality content.**
 
 ![ContentFlow Screenshot](placeholder_screenshot.png)
 *(Suggestion: Replace `placeholder_screenshot.png` with an actual screenshot of the application)*
